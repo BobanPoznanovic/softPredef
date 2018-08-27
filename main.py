@@ -241,20 +241,14 @@ def find_numbers(frame, lines_points, suma):
 
             th = cv2.resize(th, (28,28), interpolation=cv2.INTER_LINEAR)
 
-            # plt.imshow(th)
-            # plt.show()
+            #img_show = th.copy()
 
-            #number = nn.predict(th)
-            #print(number)
-            # Detected number
-            number = random.randint(0,9)
+            #plt.imshow(img_show)
+            #plt.show()
 
-            if minDistBlue < minDistGreen:
-                suma = suma + number
-            else:
-                suma = suma - number
+            input = (np.expand_dims(th, 0))
 
-
+            number = nn.predict(input)
 
         else:
             # Rectangle is not close any line:
@@ -276,42 +270,39 @@ file.write('RA 89/2014 Boban Poznanovic\nfile	sum\n')
 
 DIR = DIR+'\\videos'
 
-video_names=[]
-for name in os.listdir(DIR):
-    if os.path.isfile(os.path.join(DIR, name)):
-        video_names.append(os.path.join(DIR, name))
+# video_names=[]
+# for name in os.listdir(DIR):
+#     if os.path.isfile(os.path.join(DIR, name)):
+#         video_names.append(os.path.join(DIR, name))
+#
+# # print(video_names)
 
-print(video_names)
 
-for vid in range(0, len(video_names)):
-    cap = cv2.VideoCapture(video_names[vid])
+cap = cv2.VideoCapture('videos/video-0.avi')
 
+ret, frame = cap.read()
+[(b_x1, b_y1), (b_x2, b_y2)] = find_blue(frame) #Linija za sabiranje
+[(g_x1, g_y1), (g_x2, g_y2)] = find_green(frame) #Linija za oduzimanje
+line_points = []
+line_points.append([(b_x1, b_y1), (b_x2, b_y2)])
+line_points.append([(g_x1, g_y1), (g_x2, g_y2)])
+
+suma = 0
+
+#knn = tn.createTrainData(DIR)
+
+while(True):
     ret, frame = cap.read()
-    [(b_x1, b_y1), (b_x2, b_y2)] = find_blue(frame)  # Linija za sabiranje
-    [(g_x1, g_y1), (g_x2, g_y2)] = find_green(frame)  # Linija za oduzimanje
-    lines_points = []
-    lines_points.append([(b_x1, b_y1), (b_x2, b_y2)])
-    lines_points.append([(g_x1, g_y1), (g_x2, g_y2)])
 
-    # model = load_model('mnist_model.h5')
+    cv2.line(frame, (b_x1, b_y1), (b_x2, b_y2), (255, 255, 255), 2)
+    cv2.line(frame, (g_x1, g_y1), (g_x2, g_y2), (255, 255, 255), 2)
 
-    suma = 0
+    frame, suma = find_numbers(frame, line_points, suma)
 
-    while (cap.isOpened()):
-        ret, frame = cap.read()
+    cv2.imshow('frame', frame)
+    if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
 
-        frame, suma = find_numbers(frame, lines_points, suma)
-
-        cv2.line(frame, (b_x1, b_y1), (b_x2, b_y2), (0, 0, 255), 2)
-        cv2.line(frame, (g_x1, g_y1), (g_x2, g_y2), (0, 0, 255), 2)
-
-        # cv2.imshow('frame', frame)
-        # if cv2.waitKey(1) & 0xFF == ord('q'):
-        #     break
-
-    print(video_names[vid])
-    print('Suma: ' + str(suma) + '\n')
-    file.write('video-' + str(vid) + '.avi\t ' + str(suma) + '\n')
 
 cap.release()
 cv2.destroyAllWindows()
