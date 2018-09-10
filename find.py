@@ -110,11 +110,7 @@ def point_close_to_line(A, B, C, limit):
 
 def rectangle_close_to_line(X1,X2, rect, limit):
     # X1 and X2 are ends of line
-    (x, y, w, h) = rect
-    A = (x, y)
-    B = (x + w, y)
-    C = (x, y + h)
-    D = (x + w, y + h)
+    A, B, C, D = rect_to_points(rect)
 
     dA = point_close_to_line(X1, X2, A, limit)
     dB = point_close_to_line(X1, X2, B, limit)
@@ -128,12 +124,7 @@ def rectangle_close_to_line(X1,X2, rect, limit):
 
 def closest_point_to_line(X1, X2, rect):
     # Returns closest point to the line
-    (x, y, w, h) = rect
-    A = (x, y)
-    B = (x + w, y)
-    C = (x, y + h)
-    D = (x + w, y + h)
-
+    A, B, C, D = rect_to_points(rect)
 
     dA = point_to_line_distance(X1, X2, A)
     dB = point_to_line_distance(X1, X2, B)
@@ -151,6 +142,40 @@ def closest_point_to_line(X1, X2, rect):
     else:
         return D
 
+def rectangle_to_line_distance(X1, X2, rect):
+    point = closest_point_to_line(X1, X2, rect)
+    dist = point_to_line_distance(X1, X2, point)
+
+    return dist
+
+def rectangle_to_closest_line_distance(B1, B2, G1, G2, rect):
+    distB = rectangle_to_line_distance(B1, B2, rect)
+    distG = rectangle_to_line_distance(G1, G2, rect)
+
+    dist = distB
+    blue_is_closer = True
+
+    if distG < distB:
+        dist = distG
+        blue_is_closer = False
+
+    return blue_is_closer, dist
+
+def point_above_line(X1, X2, point):
+    (x1, y1) = X1
+    (x2, y2) = X2
+    (x0, y0) = point
+
+    k = (y1 - y2) / (x1 - x2)
+    n = (y1 * (x1 - x2) - x1 * (y1 - y2)) / (x1 - x2)
+
+    rightSide = k * x0 + n
+
+    if y0 < rightSide:
+        return  True
+    else:
+        return False
+
 
 def above_line(X1, X2, rect):
     # X1 and X2 are ends of the line
@@ -160,16 +185,106 @@ def above_line(X1, X2, rect):
     closestPoint = closest_point_to_line(X1, X2, rect)
     (x0, y0) = closestPoint
 
-    k = (y1-y2)/(x1-x2)
-    n = (y1*(x1-x2)-x1*(y1-y2))/(x1-x2)
+    k = (y1 - y2) / (x1 - x2)
+    n = (y1 * (x1 - x2) - x1 * (y1 - y2)) / (x1 - x2)
 
     rightSide = k*x0 + n
 
-    if y0 > rightSide:
-        return  True
+    # if y0 < rightSide:
+    #     A, B, C, D = rect_to_points(rect)
+    #     aA = point_above_line(X1, X2, A)
+    #     aB = point_above_line(X1, X2, B)
+    #     aC = point_above_line(X1, X2, C)
+    #     aD = point_above_line(X1, X2, D)
+    #     if aA and aB and aC and aD:
+    #         return True
+    #     else:
+    #         return False
+    if y0 < rightSide:
+        return True
     else:
         return False
 
+
+def first_frame_rectangles(frame):
+    frame_for_numbers = frame.copy()
+
+    gray = cv2.cvtColor(frame_for_numbers, cv2.COLOR_BGR2GRAY)
+    ret, th = cv2.threshold(gray, 20, 255, cv2.THRESH_BINARY)
+
+    th_cont_img = th.copy()
+
+    img, contours, hierarchy = cv2.findContours(th_cont_img, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+
+    number_rect = []
+
+    for contour in contours:
+        center, size, angle = cv2.minAreaRect(contour)
+        (x, y, w, h) = cv2.boundingRect(contour)
+        width, height = size
+        if width > 1 and width < 30 and height > 1 and height < 30:
+            if width > 9 or height > 9:
+                number_rect.append((x, y, w, h))
+
+    return number_rect
+
+def rect_to_points(rect):
+    (x, y, w, h) = rect
+    (x, y, w, h) = (int(x), int(y), int(w), int(h))
+    A = (x, y)
+    B = (x + w, y)
+    C = (x, y + h)
+    D = (x + w, y + h)
+
+    return A, B, C, D
+
+def get_int_tuple(tup):
+    return (int(tup[0]), int(tup[1]))
+
+def get_offset_values(A, B, C, D):
+    ys = []
+    xs = []
+    ys.append(A[1])
+    ys.append(B[1])
+    ys.append(C[1])
+    ys.append(D[1])
+
+    xs.append(A[0])
+    xs.append(B[0])
+    xs.append(C[0])
+    xs.append(D[0])
+
+    ymin = min(ys)
+    ymax = max(ys)
+    xmin = min(xs)
+    xmax = max(xs)
+
+    return xmin, xmax, ymin, ymax
+
+def pre_detect(frame, kernel, xmin, xmax, ymin, ymax):
+    region = frame.copy()
+    roi = region[ymin: ymax, xmin: xmax]
+
+    blank_image = np.zeros((28, 28, 3), np.uint8)
+    x_offset = (28 - roi.shape[0]) / 2
+    y_offset = (28 - roi.shape[1]) / 2
+
+    x_offset = int(round(x_offset))
+    y_offset = int(round(y_offset))
+
+    blank_image[x_offset: x_offset + roi.shape[0], y_offset: y_offset + roi.shape[1]] = roi
+
+    # ppp = blank_image.copy()
+    # plt.imshow(ppp)
+    # plt.show()
+
+    gray = cv2.cvtColor(blank_image, cv2.COLOR_BGR2GRAY)
+    ret, th = cv2.threshold(gray, 20, 255, cv2.THRESH_BINARY)
+    th = cv2.morphologyEx(th, cv2.MORPH_OPEN, kernel)
+    th = cv2.resize(th, (28, 28), interpolation=cv2.INTER_AREA)
+    input_image = (np.expand_dims(th, 0))
+
+    return input_image
 
 def find_numbers(frame, lines_points, suma):
     suma = suma
@@ -194,14 +309,13 @@ def find_numbers(frame, lines_points, suma):
 
     for contour in contours:
         center, size, angle = cv2.minAreaRect(contour)
-
         (x, y, w, h) = cv2.boundingRect(contour)
         width, height = size
         if width > 1 and width < 30 and height > 1 and height < 30:
             if width > 9 or height > 9:
                 aboveBlue = above_line(BlueA, BlueB, (x, y, w, h))
                 aboveGreen = above_line(GreenA, GreenB, (x, y, w, h))
-                if not aboveGreen or not aboveBlue:
+                if aboveGreen or aboveBlue:
                     number_contours.append(contour) #not used
                     number_rect.append((x, y, w, h))
 
@@ -222,13 +336,7 @@ def find_numbers(frame, lines_points, suma):
         C = (x, y + h)
         D = (x + w, y + h)
 
-        dA = point_to_line_distance(BlueA, BlueB, A)
-        dB = point_to_line_distance(BlueA, BlueB, B)
-        dC = point_to_line_distance(BlueA, BlueB, C)
-        dD = point_to_line_distance(BlueA, BlueB, D)
-        #print(dD)
-
-        limit = 1
+        limit = 5
 
         # Check if close to Blue line
         closeToBlueLine = rectangle_close_to_line(BlueA, BlueB, rect, limit)
@@ -292,20 +400,24 @@ def find_numbers(frame, lines_points, suma):
 
                     blank_image[x_offset: x_offset+roi.shape[0], y_offset: y_offset+roi.shape[1]] = roi
 
+                    # ppp = blank_image.copy()
+                    # plt.imshow(ppp)
+                    # plt.show()
+
                     gray = cv2.cvtColor(blank_image, cv2.COLOR_BGR2GRAY)
                     ret, th = cv2.threshold(gray, 20, 255, cv2.THRESH_BINARY)
-
                     th = cv2.morphologyEx(th, cv2.MORPH_OPEN, kernel)
-
                     th = cv2.resize(th, (28, 28), interpolation=cv2.INTER_AREA)
                     input = (np.expand_dims(th, 0))
 
                     number = nn.predict(input)
+                    print(number)
 
                     #print("Number:")
                     #print(number)
                     suma += number
             else:
+
                 if above_line(GreenA, GreenB, rect):
                     #cv2.drawContours(img, [box], 0, (0, 255, 0), 2)
                     cv2.rectangle(img, A, D, (0, 255, 0), 2)
@@ -321,16 +433,18 @@ def find_numbers(frame, lines_points, suma):
 
                     blank_image[x_offset: x_offset + roi.shape[0], y_offset: y_offset + roi.shape[1]] = roi
 
-                    gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
+                    # ppp = blank_image.copy()
+                    # plt.imshow(ppp)
+                    # plt.show()
+
+                    gray = cv2.cvtColor(blank_image, cv2.COLOR_BGR2GRAY)
                     ret, th = cv2.threshold(gray, 20, 255, cv2.THRESH_BINARY)
                     th = cv2.morphologyEx(th, cv2.MORPH_OPEN, kernel)
                     th = cv2.resize(th, (28, 28), interpolation=cv2.INTER_AREA)
                     input = (np.expand_dims(th, 0))
 
                     number = nn.predict(input)
-
-                    #print("Number:")
-                    #print(number)
+                    print(number)
                     suma -=  number
 
         else:

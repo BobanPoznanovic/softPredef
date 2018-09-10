@@ -15,7 +15,6 @@ DIR = DIR+'\\videos'
 #
 # # print(video_names)
 
-
 cap = cv2.VideoCapture('videos/video-0.avi')
 
 ret, frame = cap.read()
@@ -29,14 +28,14 @@ suma = 0
 
 while(cap.isOpened()):
     ret, frame = cap.read()
+    if not ret:
+        break
 
     cv2.line(frame, (b_x1, b_y1), (b_x2, b_y2), (255, 255, 255), 2)
     cv2.line(frame, (g_x1, g_y1), (g_x2, g_y2), (255, 255, 255), 2)
 
-
-
     frame, suma = f.find_numbers(frame, line_points, suma)
-
+    
     font = cv2.FONT_HERSHEY_SIMPLEX
     cv2.putText(frame, str(suma), (450, 450), font, 2, (255, 255, 255), 2, cv2.LINE_AA)
 
