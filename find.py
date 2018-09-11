@@ -3,6 +3,12 @@ import numpy as np
 import neural_network as nn
 import matplotlib.pyplot as plt
 
+last_roi_shape = []
+last_blue_roi_shape = (0, 0)
+last_blue_predicted_number = 0
+last_green_roi_shape = (0, 0)
+last_green_predicted_number = 0
+
 
 def find_blue(input_frame):
     frame_for_blue = input_frame.copy()
@@ -272,6 +278,16 @@ def pre_detect(frame, kernel, xmin, xmax, ymin, ymax):
     x_offset = int(round(x_offset))
     y_offset = int(round(y_offset))
 
+    shape = (roi.shape[0], roi.shape[1])
+
+    if roi.shape[0] > 25 or roi.shape[1] > 25:
+        gray = cv2.cvtColor(blank_image, cv2.COLOR_BGR2GRAY)
+        ret, th = cv2.threshold(gray, 20, 255, cv2.THRESH_BINARY)
+        th = cv2.morphologyEx(th, cv2.MORPH_OPEN, kernel)
+        th = cv2.resize(th, (28, 28), interpolation=cv2.INTER_AREA)
+        input_image = (np.expand_dims(th, 0))
+        return shape, input_image
+
     blank_image[x_offset: x_offset + roi.shape[0], y_offset: y_offset + roi.shape[1]] = roi
 
     # ppp = blank_image.copy()
@@ -280,11 +296,19 @@ def pre_detect(frame, kernel, xmin, xmax, ymin, ymax):
 
     gray = cv2.cvtColor(blank_image, cv2.COLOR_BGR2GRAY)
     ret, th = cv2.threshold(gray, 20, 255, cv2.THRESH_BINARY)
-    th = cv2.morphologyEx(th, cv2.MORPH_OPEN, kernel)
+    #th = cv2.morphologyEx(th, cv2.MORPH_OPEN, kernel)
+    th = cv2.dilate(th, kernel, iterations = 1)
+    th = cv2.erode(th, kernel, iterations = 1)
+    #th = cv2.morphologyEx(th, cv2.MORPH_CLOSE, kernel)
+
+    # ppp = th.copy()
+    # plt.imshow(ppp)
+    # plt.show()
+
     th = cv2.resize(th, (28, 28), interpolation=cv2.INTER_AREA)
     input_image = (np.expand_dims(th, 0))
 
-    return input_image
+    return shape, input_image
 
 def find_numbers(frame, lines_points, suma):
     suma = suma
@@ -336,7 +360,7 @@ def find_numbers(frame, lines_points, suma):
         C = (x, y + h)
         D = (x + w, y + h)
 
-        limit = 5
+        limit = 2
 
         # Check if close to Blue line
         closeToBlueLine = rectangle_close_to_line(BlueA, BlueB, rect, limit)
@@ -411,13 +435,12 @@ def find_numbers(frame, lines_points, suma):
                     input = (np.expand_dims(th, 0))
 
                     number = nn.predict(input)
-                    print(number)
+                    #print(number)
 
                     #print("Number:")
                     #print(number)
                     suma += number
             else:
-
                 if above_line(GreenA, GreenB, rect):
                     #cv2.drawContours(img, [box], 0, (0, 255, 0), 2)
                     cv2.rectangle(img, A, D, (0, 255, 0), 2)
@@ -444,7 +467,7 @@ def find_numbers(frame, lines_points, suma):
                     input = (np.expand_dims(th, 0))
 
                     number = nn.predict(input)
-                    print(number)
+                    #print(number)
                     suma -=  number
 
         else:
@@ -454,3 +477,209 @@ def find_numbers(frame, lines_points, suma):
 
 
     return img, suma
+
+
+def find_numbers_clean(frame, lines_points, suma, blue_numbers, green_numbers):
+    suma = suma
+
+    frame_for_numbers = frame.copy()
+
+    gray = cv2.cvtColor(frame_for_numbers, cv2.COLOR_BGR2GRAY)
+    ret, th = cv2.threshold(gray, 20, 255, cv2.THRESH_BINARY)
+
+    th_cont_img = th.copy()
+
+    img, contours, hierarchy = cv2.findContours(th_cont_img, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+    hierarchy = hierarchy[0]
+
+    number_contours = []
+    number_rect = []
+
+    BlueA = lines_points[0][0]
+    BlueB = lines_points[0][1]
+    GreenA = lines_points[1][0]
+    GreenB = lines_points[1][1]
+
+    for contour in contours:
+        center, size, angle = cv2.minAreaRect(contour)
+        (x, y, w, h) = cv2.boundingRect(contour)
+        width, height = size
+        if width > 1 and width < 30 and height > 1 and height < 30:
+            if width > 9 or height > 9:
+                aboveBlue = above_line(BlueA, BlueB, (x, y, w, h))
+                aboveGreen = above_line(GreenA, GreenB, (x, y, w, h))
+                if aboveGreen or aboveBlue:
+                    number_contours.append(contour) #not used
+                    number_rect.append((x, y, w, h))
+
+    img = frame.copy()
+    #cv2.drawContours(img, boxes, -1, (0, 255, 255), 1)
+
+
+
+    minDistBlue = 0
+    minDistGreen = 0
+
+    #print(len(number_rect))
+    for rect in number_rect:
+        A, B, C, D = rect_to_points(rect)
+
+        limit = 2
+
+        # Check if close to Blue line
+        closeToBlueLine = rectangle_close_to_line(BlueA, BlueB, rect, limit)
+        closeToGreenLine = rectangle_close_to_line(GreenA, GreenB, rect, limit)
+
+        if closeToBlueLine or closeToGreenLine:
+            # Rectangle is close to one line:
+            # Udaljenost temena A(x,y) od linija
+            dA_b = point_to_line_distance(BlueA, BlueB, A)
+            dA_g = point_to_line_distance(GreenA, GreenB, A)
+
+            # Udaljenost temena B(x+w, y) od linija
+            dB_b = point_to_line_distance(BlueA, BlueB, B)
+            dB_g = point_to_line_distance(GreenA, GreenB, B)
+
+            # Udaljenost temana C(x, y+h) od linija
+            dC_b = point_to_line_distance(BlueA, BlueB, C)
+            dC_g = point_to_line_distance(GreenA, GreenB, C)
+
+            # Udaljeost temena D(x+w, y+h) od linija
+            dD_b = point_to_line_distance(BlueA, BlueB, D)
+            dD_g = point_to_line_distance(GreenA, GreenB, D)
+
+            minDistBlue = min(dA_b, dB_b, dC_b, dD_b)
+            minDistGreen = min(dA_g, dB_g, dC_g, dD_g)
+
+            xmin, xmax, ymin, ymax = get_offset_values(A, B, C, D)
+
+            region = frame.copy()
+            kernel = np.ones((3, 3), np.uint8)
+
+            if minDistBlue < minDistGreen:
+                # Paint rectangle in blue
+                if above_line(BlueA, BlueB, rect):
+                    # #cv2.drawContours(img, [box], 0, (255, 0, 0), 2)
+                    # cv2.rectangle(img, A, D, (255, 0, 0), 2)
+                    # # Add number
+                    # roi = region[ymin: ymax, xmin: xmax]
+                    #
+                    # blank_image = np.zeros((28,28,3), np.uint8)
+                    # x_offset = (28-roi.shape[0])/2
+                    # y_offset = (28-roi.shape[1])/2
+                    #
+                    # x_offset = int(round(x_offset))
+                    # y_offset = int(round(y_offset))
+                    #
+                    # blank_image[x_offset: x_offset+roi.shape[0], y_offset: y_offset+roi.shape[1]] = roi
+                    #
+                    # # ppp = blank_image.copy()
+                    # # plt.imshow(ppp)
+                    # # plt.show()
+                    #
+                    # gray = cv2.cvtColor(blank_image, cv2.COLOR_BGR2GRAY)
+                    # ret, th = cv2.threshold(gray, 20, 255, cv2.THRESH_BINARY)
+                    # th = cv2.morphologyEx(th, cv2.MORPH_OPEN, kernel)
+                    # th = cv2.resize(th, (28, 28), interpolation=cv2.INTER_AREA)
+                    # input = (np.expand_dims(th, 0))
+                    output_shape, input = pre_detect(frame, kernel, xmin, xmax, ymin, ymax)
+
+                    number = nn.predict(input)
+                    number = number[0]
+                    addNumber = False
+                    # Check blue_numbers
+                    for last_blue_predicted_number, last_blue_roi_shape in blue_numbers:
+                        if number == last_blue_predicted_number:
+                            if output_shape[0] == last_blue_roi_shape[0] and output_shape[1] == last_blue_roi_shape[1]:
+                                print("Isti su")
+                                addNumber = False
+                                break
+                            else:
+                                # Dodaj u listu
+                                addNumber = True
+                        else:
+                            addNumber = True
+                    if addNumber:
+                        suma = suma + number
+                        value = [number, output_shape]
+                        blue_numbers.append(value)
+                    # if number == last_blue_predicted_number:
+                    #     if output_shape[0] == last_blue_roi_shape[0] and output_shape[1] == last_blue_roi_shape[1]:
+                    #         print()
+                    #     else:
+                    #         suma = suma + number
+                    #         last_blue_roi_shape = output_shape
+                    #         last_blue_predicted_number = number
+                    # else:
+                    #     suma = suma + number
+                    #     last_blue_roi_shape = output_shape
+                    #     last_blue_predicted_number = number
+                    print(number)
+            else:
+                if above_line(GreenA, GreenB, rect):
+                    # #cv2.drawContours(img, [box], 0, (0, 255, 0), 2)
+                    # cv2.rectangle(img, A, D, (0, 255, 0), 2)
+                    # # Substract number
+                    # roi = region[ymin: ymax, xmin: xmax]
+                    #
+                    # blank_image = np.zeros((28, 28, 3), np.uint8)
+                    # x_offset = (28 - roi.shape[0]) / 2
+                    # y_offset = (28 - roi.shape[1]) / 2
+                    #
+                    # x_offset = int(round(x_offset))
+                    # y_offset = int(round(y_offset))
+                    #
+                    # blank_image[x_offset: x_offset + roi.shape[0], y_offset: y_offset + roi.shape[1]] = roi
+                    #
+                    # # ppp = blank_image.copy()
+                    # # plt.imshow(ppp)
+                    # # plt.show()
+                    #
+                    # gray = cv2.cvtColor(blank_image, cv2.COLOR_BGR2GRAY)
+                    # ret, th = cv2.threshold(gray, 20, 255, cv2.THRESH_BINARY)
+                    # th = cv2.morphologyEx(th, cv2.MORPH_OPEN, kernel)
+                    # th = cv2.resize(th, (28, 28), interpolation=cv2.INTER_AREA)
+                    # input = (np.expand_dims(th, 0))
+                    output_shape, input = pre_detect(frame, kernel, xmin, xmax, ymin, ymax)
+                    number = nn.predict(input)
+                    number = number[0]
+                    minusNumber = False
+                    # Check green_numbers
+                    for last_green_predicted_number, last_green_roi_shape in green_numbers:
+                        if number == last_green_predicted_number:
+                            if output_shape[0] == last_green_roi_shape[0] and output_shape[1] == last_green_roi_shape[1]:
+                                print("Isti su")
+                                minusNumber = False
+                                break
+                            else:
+                                minusNumber = True
+                        else:
+                            minusNumber = True
+                    if minusNumber:
+                        suma = suma - number
+                        value = [number, output_shape]
+                        green_numbers.append(value)
+
+                    # if number == last_green_predicted_number:
+                    #     if output_shape[0] == last_green_roi_shape[0] and output_shape[1] == last_green_roi_shape[1]:
+                    #         print()
+                    #     else:
+                    #         suma = suma - number
+                    #         last_green_roi_shape = output_shape
+                    #         last_green_predicted_number = number
+                    # else:
+                    #     suma = suma - number
+                    #     last_green_roi_shape = output_shape
+                    #     last_green_predicted_number = number
+                    print(number)
+
+        else:
+            # Rectangle is not close any line:
+            #cv2.drawContours(img, [box], 0, (0, 0, 255), 2)
+            cv2.rectangle(img, A, D, (0, 0, 255), 2)
+
+    retVal = []
+    retVal.append(blue_numbers)
+    retVal.append(green_numbers)
+
+    return img, suma, retVal
