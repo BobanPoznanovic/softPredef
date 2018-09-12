@@ -588,21 +588,31 @@ def find_numbers_clean(frame, lines_points, suma, blue_numbers, green_numbers):
                     number = number[0]
                     addNumber = False
                     # Check blue_numbers
-                    for last_blue_predicted_number, last_blue_roi_shape in blue_numbers:
+                    for input_image, last_blue_predicted_number, last_blue_roi_shape in blue_numbers:
                         if number == last_blue_predicted_number:
                             if output_shape[0] == last_blue_roi_shape[0] and output_shape[1] == last_blue_roi_shape[1]:
                                 print("Isti su")
                                 addNumber = False
                                 break
                             else:
+                                # Dodaj komparaciju slika jer se shape moze menjati za isti broj
+                                print(input.shape)
+                                print(input_image.shape)
+                                #if np.logical_and(input_image, input):
+                                if (input_image - input).any():
+                                    addNumber = False
                                 # Dodaj u listu
-                                addNumber = True
+                                else:
+                                    addNumber = True
                         else:
                             addNumber = True
-                    if addNumber:
-                        suma = suma + number
-                        value = [number, output_shape]
-                        blue_numbers.append(value)
+                    if addNumber and number > 0:
+                        if output_shape == (1, 28, 28, 3):
+                            print("Strange shape")
+                        else:
+                            suma = suma + number
+                            value = [input, number, output_shape]
+                            blue_numbers.append(value)
                     # if number == last_blue_predicted_number:
                     #     if output_shape[0] == last_blue_roi_shape[0] and output_shape[1] == last_blue_roi_shape[1]:
                     #         print()
@@ -645,20 +655,32 @@ def find_numbers_clean(frame, lines_points, suma, blue_numbers, green_numbers):
                     number = number[0]
                     minusNumber = False
                     # Check green_numbers
-                    for last_green_predicted_number, last_green_roi_shape in green_numbers:
+                    for input_image, last_green_predicted_number, last_green_roi_shape in green_numbers:
                         if number == last_green_predicted_number:
                             if output_shape[0] == last_green_roi_shape[0] and output_shape[1] == last_green_roi_shape[1]:
                                 print("Isti su")
                                 minusNumber = False
                                 break
                             else:
-                                minusNumber = True
+                                # Dodaj komparaciju slika jer se shape moze menjati
+                                print(input.shape)
+                                print(input_image.shape)
+                                # plt.imshow(input_image)
+                                # plt.show()
+                                #if np.logical_and(input_image, input):
+                                if (input_image - input).any():
+                                    minusNumber = False
+                                else:
+                                    minusNumber = True
                         else:
                             minusNumber = True
-                    if minusNumber:
-                        suma = suma - number
-                        value = [number, output_shape]
-                        green_numbers.append(value)
+                    if minusNumber and number > 0:
+                        if output_shape == (1, 28, 28, 3):
+                            print("Strange shape")
+                        else:
+                            suma = suma - number
+                            value = [input, number, output_shape]
+                            green_numbers.append(value)
 
                     # if number == last_green_predicted_number:
                     #     if output_shape[0] == last_green_roi_shape[0] and output_shape[1] == last_green_roi_shape[1]:

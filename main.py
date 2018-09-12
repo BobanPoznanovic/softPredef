@@ -1,6 +1,7 @@
 import cv2
 import find as f
 import os.path
+import numpy as np
 
 last_blue_roi_shape = (0, 0)
 last_blue_predicted_number = 0
@@ -8,9 +9,17 @@ last_green_roi_shape = (0, 0)
 last_green_predicted_number = 0
 blue_numbers = []
 green_numbers = []
+kernel = np.ones((3, 3), np.uint8)
+
+blank_image = np.zeros((28, 28, 3), np.uint8)
+gray = cv2.cvtColor(blank_image, cv2.COLOR_BGR2GRAY)
+ret, th = cv2.threshold(gray, 20, 255, cv2.THRESH_BINARY)
+th = cv2.morphologyEx(th, cv2.MORPH_OPEN, kernel)
+th = cv2.resize(th, (28, 28), interpolation=cv2.INTER_AREA)
+input_image = (np.expand_dims(th, 0))
 
 DIR = 'D:\\Boban\Fakultet\Soft\Projekti\softPredef'
-file = open(DIR+'\\out.txt','w')
+file = open(DIR+'\\out.txt', 'w')
 file.write('RA 89/2014 Boban Poznanovic\nfile	sum\n')
 
 DIR = DIR+'\\videos'
@@ -25,10 +34,10 @@ for name in os.listdir(DIR):
 for vid_num in range(0, len(video_names)):
     cap = cv2.VideoCapture(video_names[vid_num])
 
-    blue_element = [last_blue_predicted_number, last_blue_roi_shape]
+    blue_element = [input_image, last_blue_predicted_number, last_blue_roi_shape]
     blue_numbers.append(blue_element)
 
-    green_element = [last_green_predicted_number, last_green_roi_shape]
+    green_element = [input_image, last_green_predicted_number, last_green_roi_shape]
     green_numbers.append(green_element)
 
     #cap = cv2.VideoCapture('videos/video-0.avi')
@@ -73,11 +82,11 @@ for vid_num in range(0, len(video_names)):
     file.write('video-' + str(vid_num) + '.avi\t ' + str(suma) + '\n')
 
     blue_numbers = []
-    blue_element = [last_blue_predicted_number, last_blue_roi_shape]
+    blue_element = [input_image, last_blue_predicted_number, last_blue_roi_shape]
     blue_numbers.append(blue_element)
 
     green_numbers = []
-    green_element = [last_green_predicted_number, last_green_roi_shape]
+    green_element = [input_image, last_green_predicted_number, last_green_roi_shape]
     green_numbers.append(green_element)
 
 cap.release()
