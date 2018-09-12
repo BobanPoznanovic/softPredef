@@ -178,7 +178,7 @@ def point_above_line(X1, X2, point):
     rightSide = k * x0 + n
 
     if y0 < rightSide:
-        return  True
+        return True
     else:
         return False
 
@@ -196,20 +196,20 @@ def above_line(X1, X2, rect):
 
     rightSide = k*x0 + n
 
-    # if y0 < rightSide:
-    #     A, B, C, D = rect_to_points(rect)
-    #     aA = point_above_line(X1, X2, A)
-    #     aB = point_above_line(X1, X2, B)
-    #     aC = point_above_line(X1, X2, C)
-    #     aD = point_above_line(X1, X2, D)
-    #     if aA and aB and aC and aD:
-    #         return True
-    #     else:
-    #         return False
     if y0 < rightSide:
-        return True
-    else:
-        return False
+        A, B, C, D = rect_to_points(rect)
+        aA = point_above_line(X1, X2, A)
+        aB = point_above_line(X1, X2, B)
+        aC = point_above_line(X1, X2, C)
+        aD = point_above_line(X1, X2, D)
+        if aA and aB and aC and aD:
+            return True
+        else:
+            return False
+    # if y0 < rightSide:
+    #     return True
+    # else:
+    #     return False
 
 
 def first_frame_rectangles(frame):

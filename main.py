@@ -75,8 +75,8 @@ for vid_num in range(0, len(video_names)):
         if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
 
-    print('Finalna suma')
-    print(suma)
+    # print('Finalna suma')
+    # print(suma)
     print(video_names[vid_num])
     print('Suma: ' + str(suma) + '\n')
     file.write('video-' + str(vid_num) + '.avi\t ' + str(suma) + '\n')
